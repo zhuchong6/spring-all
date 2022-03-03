@@ -26,10 +26,45 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private MyAuthenticationProvider myAuthenticationProvider;
 
+    @Autowired
+    private SmsAuthenticationProvider smsAuthenticationProvider;
+
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SmsLoginAuthenticationFilter smsLoginAuthenticationFilter() throws Exception{
+        SmsLoginAuthenticationFilter filter = new SmsLoginAuthenticationFilter();
+
+        //对这个filter设置AuthenticationManager，取默认的ProviderManager
+        filter.setAuthenticationManager(authenticationManagerBean());
+        //设置成功的处理器，由于要返回json，所以进行一些处理
+        filter.setAuthenticationSuccessHandler((request, response, authentication) -> {
+            //登录成功时返回给前端的数据
+            Map result = new HashMap();
+            result.put("success", "sms登录成功");
+            response.setContentType("application/json;charset=utf-8");
+            response.getWriter().write(JsonUtil.jsonToString(result));
+        });
+        //设置失败的处理器，由于要返回json，所以进行一些处理
+        filter.setAuthenticationFailureHandler((request, response, exception) -> {
+            Map result = new HashMap();
+
+            if (exception instanceof UsernameNotFoundException) {
+                result.put("fail", exception.getMessage());
+            } else if (exception instanceof BadCredentialsException) {
+                result.put("fail", "sms密码错误" + exception.getMessage());
+            } else {
+                result.put("fail", "sms其他异常");
+            }
+            response.setContentType("application/json;charset=utf-8");
+            response.getWriter().write(JsonUtil.jsonToString(result));
+        });
+
+        return filter;
     }
 
     @Bean
@@ -71,6 +106,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         http.authorizeRequests()
                 .antMatchers("/index").hasRole("USER")
                 .antMatchers("hello").hasRole("admin")
+                .and()
+                .authorizeRequests()
+                //放行这些路径
+                .antMatchers("/smsLogin","verityCode","/login")
+                .permitAll()
 
                 .and()
                 .formLogin()
@@ -116,9 +156,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                     response.getWriter().write(JsonUtil.jsonToString(result));
                 });
         //把filter添加到UsernamePasswordAuthenticationFilter这个过滤器位置
-        http.addFilterAt(myLoginAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAt(myLoginAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(smsLoginAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         //把自定义的AuthenticationProvider设置进去
-        http.authenticationProvider(myAuthenticationProvider);
+        http.authenticationProvider(myAuthenticationProvider)
+                .authenticationProvider(smsAuthenticationProvider);
     }
 }
