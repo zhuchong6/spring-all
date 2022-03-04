@@ -23,7 +23,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
             throw new UsernameNotFoundException("找不到用户");
         }
 
-        List<GrantedAuthority> grantedAuthorities = AuthorityUtils.commaSeparatedStringToAuthorityList("ADMIN,USER");
+        List<GrantedAuthority> grantedAuthorities = AuthorityUtils.commaSeparatedStringToAuthorityList("ROLE_ADMIN,ROLE_USER");
         String encode = new BCryptPasswordEncoder().encode("123");
         return new User("zhuchong", encode, grantedAuthorities);
 
