@@ -8,13 +8,11 @@ import org.springframework.security.access.AccessDecisionManager;
 import org.springframework.security.access.AccessDecisionVoter;
 import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.config.annotation.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.servlet.http.HttpServletResponse;
@@ -38,6 +36,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private SmsRoleSecurityMetadataSource smsRoleSecurityMetadataSource;
+
+    @Autowired
+    private SmsAuthorizationFilterManager smsAuthorizationFilterManager;
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -113,37 +114,42 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         http.cors().and().csrf().disable();
         //对请求url进行防护
         http
+                .authorizeHttpRequests(auth->auth.mvcMatchers("/smsLogin","/verityCode","/login","logout")
+                        .permitAll()
+                        .anyRequest().access(smsAuthorizationFilterManager)
+
+                )
 //                .authorizeRequests()
 //                .antMatchers("/index").hasRole("USER")
 //                .antMatchers("hello").hasRole("admin")
 //                .and()
-                .authorizeRequests()
-                //放行这些路径
-                .antMatchers("/smsLogin","/verityCode","/login")
-                .permitAll()
-                .and()
-
-                .authorizeRequests()
-                .anyRequest().authenticated()
-                //修改accessManager
-                .accessDecisionManager(customizeAccessDecisionManager())
-                //放入自定义的权限拦截器
-                .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
-
-                    @Override
-                    public <O extends FilterSecurityInterceptor> O postProcess(O object) {
-                        object.setSecurityMetadataSource(smsRoleSecurityMetadataSource);
-                        return object;
-                    }
-                })
-
-                .and()
+//                .authorizeRequests()
+//                //放行这些路径
+//                .antMatchers("/smsLogin","/verityCode","/login")
+//                .permitAll()
+//                .and()
+//
+//                .authorizeRequests()
+//                .anyRequest().authenticated()
+//                //修改accessManager
+//                .accessDecisionManager(customizeAccessDecisionManager())
+//                //放入自定义的权限拦截器
+//                .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
+//
+//                    @Override
+//                    public <O extends FilterSecurityInterceptor> O postProcess(O object) {
+//                        object.setSecurityMetadataSource(smsRoleSecurityMetadataSource);
+//                        return object;
+//                    }
+//                })
+//
+//                .and()
                 .formLogin()
-                .permitAll()
+                .disable()
 
-                .and()
+
                 .logout()
-                .permitAll()
+//                .permitAll()
                 .logoutSuccessHandler((request, response, authentication) -> {
                     //登出成功时返回给前端的数据
                     Map result = new HashMap();
