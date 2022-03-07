@@ -4,16 +4,23 @@ import com.zhu.security.utils.JsonUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.AccessDecisionManager;
+import org.springframework.security.access.AccessDecisionVoter;
+import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.config.annotation.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.servlet.http.HttpServletResponse;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -29,6 +36,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private SmsAuthenticationProvider smsAuthenticationProvider;
 
+    @Autowired
+    private SmsRoleSecurityMetadataSource smsRoleSecurityMetadataSource;
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -103,14 +112,30 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         //关闭跨域和csrf防护
         http.cors().and().csrf().disable();
         //对请求url进行防护
-        http.authorizeRequests()
-                .antMatchers("/index").hasRole("USER")
-                .antMatchers("hello").hasRole("admin")
-                .and()
+        http
+//                .authorizeRequests()
+//                .antMatchers("/index").hasRole("USER")
+//                .antMatchers("hello").hasRole("admin")
+//                .and()
                 .authorizeRequests()
                 //放行这些路径
-                .antMatchers("/smsLogin","verityCode","/login")
+                .antMatchers("/smsLogin","/verityCode","/login")
                 .permitAll()
+                .and()
+
+                .authorizeRequests()
+                .anyRequest().authenticated()
+                //修改accessManager
+                .accessDecisionManager(customizeAccessDecisionManager())
+                //放入自定义的权限拦截器
+                .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
+
+                    @Override
+                    public <O extends FilterSecurityInterceptor> O postProcess(O object) {
+                        object.setSecurityMetadataSource(smsRoleSecurityMetadataSource);
+                        return object;
+                    }
+                })
 
                 .and()
                 .formLogin()
@@ -162,5 +187,14 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         //把自定义的AuthenticationProvider设置进去
         http.authenticationProvider(myAuthenticationProvider)
                 .authenticationProvider(smsAuthenticationProvider);
+    }
+
+    private AccessDecisionManager customizeAccessDecisionManager() {
+
+        List<AccessDecisionVoter<? extends Object>> decisionVoterList
+                = Arrays.asList(
+                new SmsRoleBasedVoter()
+        );
+        return new AffirmativeBased(decisionVoterList);
     }
 }
